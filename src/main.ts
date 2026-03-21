@@ -21,6 +21,7 @@ const CAMERA_FOV = 60;
 const CAMERA_NEAR = 0.1;
 const CAMERA_FAR = 1000;
 const CAMERA_Z = 5;
+const CAMERA_POSITION = new THREE.Vector3(0, 2, CAMERA_Z);
 
 const SPHERE_RADIUS = 100;
 const SPHERE_WIDTH_SEG = 32;
@@ -75,7 +76,7 @@ function createCamera(): THREE.PerspectiveCamera {
     CAMERA_NEAR,
     CAMERA_FAR,
   );
-  camera.position.set(0, 2, CAMERA_Z);
+  camera.position.copy(CAMERA_POSITION);
   camera.lookAt(0, 0, 0);
   return camera;
 }
@@ -102,6 +103,7 @@ function createSphere(scene: THREE.Scene): THREE.Mesh {
     SPHERE_HEIGHT_SEG,
     SPHERE_RADIUS,
     SPHERE_WIDTH_SEG,
+    CAMERA_POSITION
   });
   scene.add(blackhole);
 
