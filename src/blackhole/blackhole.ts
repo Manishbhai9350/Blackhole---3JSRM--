@@ -173,7 +173,7 @@ export function CreateBlackHole({
     nebula2Color: uniform(color(0.9, 0.7, 0.75)),
 
     blackHoleMass: uniform(1.0),
-    stepSize: uniform(0.3),
+    stepSize: uniform(1),
     gravitationalLensing: uniform(1.5),
 
     diskTemperature: uniform(8.0),
@@ -181,19 +181,17 @@ export function CreateBlackHole({
     diskInnerRadius: uniform(3.0),
     diskOuterRadius: uniform(16.0),
 
-    dopplerStrength: uniform(1.0),
-    diskRotationSpeed: uniform(100.0),
-
-    turbulenceScale: uniform(6.2),
-    turbulenceStretch: uniform(10.0),
-    turbulenceLacunarity: uniform(1.0),
-    turbulencePersistence: uniform(.8),
-    turbulenceSharpness: uniform(0.2),
-
-    turbulenceCycleTime: uniform(10.0),
+    dopplerStrength: uniform(1.0), // D³ beaming intensity — higher = more brightness asymmetry left vs right
+    diskRotationSpeed: uniform(10.0), // how fast the disk spins — also drives Keplerian phase animation
+    turbulenceScale: uniform(1.0), // zoom level of noise — higher = finer rings, lower = bigger blobs
+    turbulenceStretch: uniform(1.0), // how elongated arcs are — higher = longer streaks, lower = round blobs
+    turbulenceLacunarity: uniform(2.7), // frequency multiplier per FBM octave — higher = more fine detail
+    turbulencePersistence: uniform(0.6), // amplitude multiplier per FBM octave — higher = rougher texture
+    turbulenceSharpness: uniform(1.0), // pow() contrast — higher = sharper bright/dark edges, lower = soft fog
+    turbulenceCycleTime: uniform(100.0), // seconds before turbulence resets — longer = slower crossfade cycle
 
     diskEdgeSoftnessInner: uniform(0.03),
-    diskEdgeSoftnessOuter: uniform(0.06),
+    diskEdgeSoftnessOuter: uniform(0.04),
 
     ...Uniforms,
   };
@@ -244,7 +242,7 @@ export function CreateBlackHole({
     const outerR = uniforms.diskOuterRadius;
 
     // ── Raymarching loop ────────────────────────────────────────────────────
-    Loop(200, () => {
+    Loop(100, () => {
       const r = length(rayPos);
 
       // fell into black hole?
@@ -329,48 +327,37 @@ export function CreateBlackHole({
           );
           diskColor.mulAssign(clamp(dopplerBoost, float(0.1), float(5.0)));
 
-          // ── Keplerian rotation + turbulence ─────────────────────────────
-          const cycleLength = uniforms.turbulenceCycleTime;
-          const cyclicTime = time.mod(cycleLength);
-          const blendFactor = cyclicTime.div(cycleLength);
-
-          const phase1 = cyclicTime
+          // Keplerian rotation: inner regions rotate faster
+          const keplerianPhase = time
             .mul(uniforms.diskRotationSpeed)
             .div(pow(hitR, float(1.5)));
+          const rotatedAngle = hitAngle.add(keplerianPhase);
 
-          const phase2 = cyclicTime
-            .add(cycleLength)
-            .mul(uniforms.diskRotationSpeed)
-            .div(pow(hitR, float(1.5)));
-
-          const noiseCoord1 = vec3(
-            hitR.mul(uniforms.turbulenceScale),
-            cos(hitAngle.add(phase1)).div(uniforms.turbulenceStretch.max(0.1)),
-            sin(hitAngle.add(phase1)).div(uniforms.turbulenceStretch.max(0.1)),
-          );
-          const noiseCoord2 = vec3(
-            hitR.mul(uniforms.turbulenceScale),
-            cos(hitAngle.add(phase2)).div(uniforms.turbulenceStretch.max(0.1)),
-            sin(hitAngle.add(phase2)).div(uniforms.turbulenceStretch.max(0.1)),
+          // Anisotropic sampling: radial creates rings, azimuthal creates arcs
+          const noiseCoord = vec3(
+            hitR.mul(uniforms.turbulenceScale), // Radial component
+            cos(rotatedAngle).div(uniforms.turbulenceStretch.max(0.1)), // Stretched azimuthally
+            sin(rotatedAngle).div(uniforms.turbulenceStretch.max(0.1)),
           );
 
-          const turbulence1 = fbm(
-            noiseCoord1,
+          const turbulence = fbm(
+            noiseCoord,
             uniforms.turbulenceLacunarity,
             uniforms.turbulencePersistence,
           );
-          const turbulence2 = fbm(
-            noiseCoord2,
-            uniforms.turbulenceLacunarity,
-            uniforms.turbulencePersistence,
-          );
-
-          // crossfade between the two phases to hide the cycle reset
-          const turbulence = mix(turbulence2, turbulence1, blendFactor);
           const ringOpacity = pow(
             clamp(turbulence, float(0.0), float(1.0)),
             uniforms.turbulenceSharpness,
           );
+
+          // only stop the ray if this disk hit is actually visible
+          // const isVisible = ringOpacity.mul(edgeFalloff).greaterThan(0.05);
+
+          // If(isVisible, () => {
+          //   color.assign(diskColor.mul(edgeFalloff).mul(ringOpacity));
+          //   escaped.assign(1.0);
+          //   Break();
+          // });
 
           color.assign(diskColor.mul(edgeFalloff).mul(ringOpacity));
           escaped.assign(1.0);
