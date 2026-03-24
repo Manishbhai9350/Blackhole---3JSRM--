@@ -400,7 +400,7 @@ export function CreateBlackHole({
     const outerR = uniforms.diskOuterRadius;
 
     // ── Raymarching loop ────────────────────────────────────────────────────
-    Loop(144, () => {
+    Loop(64, () => {
       const r = length(rayPos);
 
       // fell into black hole?
